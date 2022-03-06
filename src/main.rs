@@ -41,7 +41,7 @@ impl DenialOfService {
         }
 
         let mut spawned_tasks = Vec::new();
-        for _ in 0..10000000 {
+        loop {
             let self_cloned = self.clone();
 
             let taken_proxy = take_random_proxy(proxies.clone());
