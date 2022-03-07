@@ -23,9 +23,13 @@ struct Args {
     #[clap(short, long)]
     url: String,
 
-    /// Path to proxy file
+    /// Needs to use proxy servers
     #[clap(short, long, takes_value = false)]
     proxy: bool,
+
+    /// Start DoS without website status checking
+    #[clap(short, long, takes_value = false)]
+    force: bool,
 }
 
 struct DenialOfService {
@@ -169,10 +173,30 @@ async fn main() {
     let website_url = args.url;
     let proxy = args.proxy;
 
+    if args.force {
+        display_time();
+        println!(
+            "{} {}",
+            "DoS is running at".green(),
+            website_url.clone().bold()
+        );
+        Arc::new(DenialOfService {
+            url: website_url.clone(),
+            spawned_requests: AtomicU128::new(0),
+            use_proxy: proxy,
+        })
+        .attack()
+        .await
+    }
+
     match website_is_up(website_url.clone()).await {
         Ok(()) => {
             display_time();
-            println!("{} {}", "DoS is running at".green(), website_url.bold());
+            println!(
+                "{} {}",
+                "DoS is running at".green(),
+                website_url.clone().bold()
+            );
             Arc::new(DenialOfService {
                 url: website_url,
                 spawned_requests: AtomicU128::new(0),
