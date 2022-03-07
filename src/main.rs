@@ -3,6 +3,8 @@
 use chrono::{Local, Timelike};
 use clap::Parser;
 use colored::Colorize;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use rand::Rng;
 
 use std::fs::File;
@@ -49,10 +51,10 @@ impl DenialOfService {
             }
         }
 
-        let mut spawned_tasks = Vec::new();
+        let mut spawned_tasks = FuturesUnordered::new();
         loop {
             if spawned_tasks.len() > 10000 {
-                continue;
+                spawned_tasks.next().await;
             }
 
             let self_cloned = self.clone();
