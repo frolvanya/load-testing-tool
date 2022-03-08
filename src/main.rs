@@ -86,10 +86,8 @@ impl DenialOfService {
 
         let mut proxies = Vec::new();
         if let Ok(lines) = read_lines("./proxies.txt") {
-            for line in lines {
-                if let Ok(proxy) = line {
-                    proxies.push(proxy);
-                }
+            for line in lines.flatten() {
+                proxies.push(line);
             }
         }
 
@@ -203,9 +201,9 @@ async fn website_is_up(url: String) -> Result<(), WebsiteError> {
                 return Ok(());
             }
 
-            return Err(WebsiteError::BadResponse);
+            Err(WebsiteError::BadResponse)
         }
-        Err(_) => return Err(WebsiteError::WebsiteUnaccessible),
+        Err(_) => Err(WebsiteError::WebsiteUnaccessible),
     }
 }
 
