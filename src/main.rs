@@ -61,7 +61,7 @@ impl DenialOfService {
                 "{}",
                 format!(
                     "{} {} {}",
-                    "Programm worked for".green(),
+                    "Program worked for".green(),
                     format!("{:.02}", start_attack_time.elapsed().as_secs_f64() / 60.).bold(),
                     "min".green()
                 )
