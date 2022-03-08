@@ -11,3 +11,11 @@
 # ./target/release/denial-of-service -u https://example.com -fpe
 ```
 
+## About flags
+```
+-e, --error-mode    Do not display errors
+-f, --force         Start DoS without website status checking
+-h, --help          Print help information
+-p, --proxy         Needs to use proxy servers
+-u, --url <URL>     Website URL to attack
+```
