@@ -12,6 +12,7 @@ use std::io::{self, BufRead};
 use std::path::Path;
 use std::sync::atomic::{AtomicU128, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
 enum WebsiteError {
     WebsiteUnaccessible,
@@ -45,6 +46,44 @@ struct DenialOfService {
 
 impl DenialOfService {
     async fn attack(self: &Arc<Self>, activate_proxy: bool, error_mode: bool) {
+        let start_attack_time = Instant::now();
+
+        let cloned_self = self.clone();
+        tokio::spawn(async move {
+            tokio::signal::ctrl_c().await.unwrap();
+
+            println!();
+            display_time();
+            println!("{}", "DoS was stoped by user".green());
+
+            display_time();
+            println!(
+                "{}",
+                format!(
+                    "{} {} {}",
+                    "Programm worked for".green(),
+                    format!("{:.02}", start_attack_time.elapsed().as_secs_f64() / 60.).bold(),
+                    "min".green()
+                )
+            );
+
+            display_time();
+            println!(
+                "{}",
+                format!(
+                    "{} {}",
+                    "Average requests per second:".green(),
+                    format!(
+                        "{:.02}",
+                        cloned_self.spawned_requests.load(Ordering::SeqCst) as f64
+                            / start_attack_time.elapsed().as_secs_f64()
+                    )
+                    .bold()
+                )
+            );
+            std::process::exit(1);
+        });
+
         let mut proxies = Vec::new();
         if let Ok(lines) = read_lines("./proxies.txt") {
             for line in lines {
