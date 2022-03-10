@@ -37,6 +37,10 @@ struct Args {
     /// Do not display errors
     #[clap(short = 'e', long = "no-error-mode", takes_value = false)]
     no_error_mode: bool,
+
+    /// Set up a concurrency
+    #[clap(short, long)]
+    concurrency: usize,
 }
 
 struct LoadTestingTool {
@@ -45,7 +49,7 @@ struct LoadTestingTool {
 }
 
 impl LoadTestingTool {
-    async fn attack(self: &Arc<Self>, activate_proxy: bool, error_mode: bool) {
+    async fn attack(self: &Arc<Self>, concurrency: usize, activate_proxy: bool, error_mode: bool) {
         let start_attack_time = Instant::now();
 
         let cloned_self = self.clone();
@@ -54,7 +58,7 @@ impl LoadTestingTool {
 
             println!();
             display_time();
-            println!("{}", "DoS was stoped by user".green());
+            println!("{}", "Load Testing Tool was stoped by user".green());
 
             display_time();
             println!(
@@ -93,7 +97,7 @@ impl LoadTestingTool {
 
         let mut spawned_tasks = FuturesUnordered::new();
         loop {
-            if spawned_tasks.len() > 150 {
+            if spawned_tasks.len() > concurrency {
                 spawned_tasks.next().await;
             }
 
@@ -207,7 +211,12 @@ async fn website_is_up(url: String) -> Result<(), WebsiteError> {
     }
 }
 
-async fn start_load_testing_tool(url: String, activate_proxy: bool, error_mode: bool) {
+async fn start_load_testing_tool(
+    url: String,
+    concurrency: usize,
+    activate_proxy: bool,
+    error_mode: bool,
+) {
     display_time();
     println!(
         "{} {}",
@@ -218,7 +227,7 @@ async fn start_load_testing_tool(url: String, activate_proxy: bool, error_mode: 
         url: url.clone(),
         spawned_requests: AtomicU128::new(0),
     })
-    .attack(activate_proxy, error_mode)
+    .attack(concurrency, activate_proxy, error_mode)
     .await
 }
 
@@ -229,14 +238,15 @@ async fn main() {
     let website_url = args.url;
     let use_proxy = args.use_proxy;
     let error_mode = args.no_error_mode;
+    let concurrency = args.concurrency;
 
     if args.no_status_check {
-        start_load_testing_tool(website_url.clone(), use_proxy, error_mode).await;
+        start_load_testing_tool(website_url.clone(), concurrency, use_proxy, error_mode).await;
     }
 
     match website_is_up(website_url.clone()).await {
         Ok(()) => {
-            start_load_testing_tool(website_url.clone(), use_proxy, error_mode).await;
+            start_load_testing_tool(website_url.clone(), concurrency, use_proxy, error_mode).await;
         }
         Err(WebsiteError::WebsiteUnaccessible) => {
             display_error(
