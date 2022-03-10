@@ -22,21 +22,21 @@ enum WebsiteError {
 /// Load Testing Tool
 #[derive(Parser, Debug)]
 struct Args {
-    /// Website URL to attack
+    /// Website URL to test
     #[clap(short, long)]
     url: String,
 
     /// Needs to use proxy servers
-    #[clap(short, long, takes_value = false)]
-    proxy: bool,
+    #[clap(short = 'p', long = "use-proxy", takes_value = false)]
+    use_proxy: bool,
 
-    /// Start DoS without website status checking
-    #[clap(short, long, takes_value = false)]
-    force: bool,
+    /// Start Load Tesing Tool without website status checking
+    #[clap(short = 's', long = "no-status-check", takes_value = false)]
+    no_status_check: bool,
 
     /// Do not display errors
-    #[clap(short, long, takes_value = false)]
-    error_mode: bool,
+    #[clap(short = 'e', long = "no-error-mode", takes_value = false)]
+    no_error_mode: bool,
 }
 
 struct LoadTestingTool {
@@ -93,7 +93,7 @@ impl LoadTestingTool {
 
         let mut spawned_tasks = FuturesUnordered::new();
         loop {
-            if spawned_tasks.len() > 3000 {
+            if spawned_tasks.len() > 150 {
                 spawned_tasks.next().await;
             }
 
@@ -227,16 +227,16 @@ async fn main() {
     let args = Args::parse();
 
     let website_url = args.url;
-    let activate_proxy = args.proxy;
-    let error_mode = args.error_mode;
+    let use_proxy = args.use_proxy;
+    let error_mode = args.no_error_mode;
 
-    if args.force {
-        start_load_testing_tool(website_url.clone(), activate_proxy, error_mode).await;
+    if args.no_status_check {
+        start_load_testing_tool(website_url.clone(), use_proxy, error_mode).await;
     }
 
     match website_is_up(website_url.clone()).await {
         Ok(()) => {
-            start_load_testing_tool(website_url.clone(), activate_proxy, error_mode).await;
+            start_load_testing_tool(website_url.clone(), use_proxy, error_mode).await;
         }
         Err(WebsiteError::WebsiteUnaccessible) => {
             display_error(
