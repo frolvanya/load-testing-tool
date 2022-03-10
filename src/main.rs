@@ -19,7 +19,7 @@ enum WebsiteError {
     BadResponse,
 }
 
-/// Denial of Service attack
+/// Load Testing Tool
 #[derive(Parser, Debug)]
 struct Args {
     /// Website URL to attack
@@ -39,12 +39,12 @@ struct Args {
     error_mode: bool,
 }
 
-struct DenialOfService {
+struct LoadTestingTool {
     url: String,
     spawned_requests: AtomicU128,
 }
 
-impl DenialOfService {
+impl LoadTestingTool {
     async fn attack(self: &Arc<Self>, activate_proxy: bool, error_mode: bool) {
         let start_attack_time = Instant::now();
 
@@ -207,10 +207,14 @@ async fn website_is_up(url: String) -> Result<(), WebsiteError> {
     }
 }
 
-async fn start_denial_of_service(url: String, activate_proxy: bool, error_mode: bool) {
+async fn start_load_testing_tool(url: String, activate_proxy: bool, error_mode: bool) {
     display_time();
-    println!("{} {}", "DoS is running at".green(), url.clone().bold());
-    Arc::new(DenialOfService {
+    println!(
+        "{} {}",
+        "Load Testing Tool is running at".green(),
+        url.clone().bold()
+    );
+    Arc::new(LoadTestingTool {
         url: url.clone(),
         spawned_requests: AtomicU128::new(0),
     })
@@ -227,12 +231,12 @@ async fn main() {
     let error_mode = args.error_mode;
 
     if args.force {
-        start_denial_of_service(website_url.clone(), activate_proxy, error_mode).await;
+        start_load_testing_tool(website_url.clone(), activate_proxy, error_mode).await;
     }
 
     match website_is_up(website_url.clone()).await {
         Ok(()) => {
-            start_denial_of_service(website_url.clone(), activate_proxy, error_mode).await;
+            start_load_testing_tool(website_url.clone(), activate_proxy, error_mode).await;
         }
         Err(WebsiteError::WebsiteUnaccessible) => {
             display_error(
