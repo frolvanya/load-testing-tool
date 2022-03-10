@@ -126,19 +126,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
-name = "denial-of-service"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "clap",
- "colored",
- "futures",
- "rand",
- "reqwest",
- "tokio",
-]
-
-[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -466,6 +453,19 @@ name = "libc"
 version = "0.2.119"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1bf2e165bb3457c8e098ea76f3e3bc9db55f87aa90d52d0e6be741470916aaa4"
+
+[[package]]
+name = "load-testing-tool"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "colored",
+ "futures",
+ "rand",
+ "reqwest",
+ "tokio",
+]
 
 [[package]]
 name = "lock_api"
