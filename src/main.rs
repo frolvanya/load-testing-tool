@@ -93,7 +93,7 @@ impl DenialOfService {
 
         let mut spawned_tasks = FuturesUnordered::new();
         loop {
-            if spawned_tasks.len() > 10000 {
+            if spawned_tasks.len() > 3000 {
                 spawned_tasks.next().await;
             }
 

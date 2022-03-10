@@ -1,3 +1,5 @@
+# HTTP load testing tool (experiment)
+> Do not use this program for bad purposes, this may lead to criminal liability!
 # USAGE
 
 ## How to build a program
