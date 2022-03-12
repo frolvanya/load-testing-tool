@@ -4,7 +4,7 @@ use chrono::{Local, Timelike};
 use clap::Parser;
 use colored::Colorize;
 use futures::stream::FuturesUnordered;
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use rand::Rng;
 
 use std::fs::File;
@@ -104,23 +104,39 @@ impl LoadTestingTool {
             let self_cloned = self.clone();
             if activate_proxy {
                 let taken_proxy = take_random_proxy(proxies.clone());
-                spawned_tasks.push(tokio::spawn(async move {
-                    match reqwest::Proxy::http(taken_proxy.clone()) {
-                        Ok(proxy) => match reqwest::Client::builder().proxy(proxy).build() {
-                            Ok(client) => match client.get(self_cloned.url.clone()).send().await {
-                                Ok(_) => {
-                                    self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
+                spawned_tasks.push(
+                    (async move {
+                        match reqwest::Proxy::http(taken_proxy.clone()) {
+                            Ok(proxy) => match reqwest::Client::builder().proxy(proxy).build() {
+                                Ok(client) => {
+                                    match client.get(self_cloned.url.clone()).send().await {
+                                        Ok(_) => {
+                                            self_cloned
+                                                .spawned_requests
+                                                .fetch_add(1, Ordering::SeqCst);
 
-                                    if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000
-                                        == 0
-                                    {
-                                        display_time();
+                                            if self_cloned.spawned_requests.load(Ordering::SeqCst)
+                                                % 1000
+                                                == 0
+                                            {
+                                                display_time();
 
-                                        let request_info = format!(
-                                            "Request №{} was successfuly sent from",
-                                            self_cloned.spawned_requests.load(Ordering::SeqCst),
-                                        );
-                                        println!("{} {}", request_info.green(), taken_proxy.bold());
+                                                let request_info = format!(
+                                                    "Request №{} was successfuly sent from",
+                                                    self_cloned
+                                                        .spawned_requests
+                                                        .load(Ordering::SeqCst),
+                                                );
+                                                println!(
+                                                    "{} {}",
+                                                    request_info.green(),
+                                                    taken_proxy.bold()
+                                                );
+                                            }
+                                        }
+                                        Err(e) => {
+                                            display_error(format!("{}", e), error_mode);
+                                        }
                                     }
                                 }
                                 Err(e) => {
@@ -130,33 +146,34 @@ impl LoadTestingTool {
                             Err(e) => {
                                 display_error(format!("{}", e), error_mode);
                             }
-                        },
-                        Err(e) => {
-                            display_error(format!("{}", e), error_mode);
-                        }
-                    };
-                }));
+                        };
+                    })
+                    .boxed(),
+                );
             } else {
-                spawned_tasks.push(tokio::spawn(async move {
-                    match reqwest::get(self_cloned.url.clone()).await {
-                        Ok(_) => {
-                            self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
+                spawned_tasks.push(
+                    (async move {
+                        match reqwest::get(self_cloned.url.clone()).await {
+                            Ok(_) => {
+                                self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
 
-                            if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000 == 0 {
-                                display_time();
+                                if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000 == 0 {
+                                    display_time();
 
-                                let request_info = format!(
-                                    "Request №{} was successfuly sent",
-                                    self_cloned.spawned_requests.load(Ordering::SeqCst),
-                                );
-                                println!("{}", request_info.green());
+                                    let request_info = format!(
+                                        "Request №{} was successfuly sent",
+                                        self_cloned.spawned_requests.load(Ordering::SeqCst),
+                                    );
+                                    println!("{}", request_info.green());
+                                }
+                            }
+                            Err(e) => {
+                                display_error(format!("{}", e), error_mode);
                             }
                         }
-                        Err(e) => {
-                            display_error(format!("{}", e), error_mode);
-                        }
-                    }
-                }));
+                    })
+                    .boxed(),
+                );
             }
         }
     }
