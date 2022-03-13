@@ -5,6 +5,9 @@ use clap::Parser;
 use colored::Colorize;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use hyper::{Body, Client, Method, Request, Uri};
+use hyper_socks2::SocksConnector;
+use hyper_tls::HttpsConnector;
 use rand::Rng;
 
 use std::fs::File;
@@ -103,57 +106,129 @@ impl LoadTestingTool {
 
             let self_cloned = self.clone();
             if activate_proxy {
-                let taken_proxy = take_random_proxy(proxies.clone());
-                spawned_tasks.push(tokio::spawn(async move {
-                    match reqwest::Proxy::http(taken_proxy.clone()) {
-                        Ok(proxy) => match reqwest::Client::builder().proxy(proxy).build() {
-                            Ok(client) => match client.get(self_cloned.url.clone()).send().await {
-                                Ok(_) => {
-                                    self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
+                let mut proxy_successfully_parsed = true;
+                let taken_proxy = match take_random_proxy(proxies.clone()).parse::<Uri>() {
+                    Ok(proxy_uri) => proxy_uri,
+                    Err(e) => {
+                        display_error(
+                            format!("Unable to parse taken proxy, due to: {}", e),
+                            error_mode,
+                        );
 
-                                    if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000
-                                        == 0
-                                    {
-                                        display_time();
+                        proxy_successfully_parsed = false;
+                        Uri::from_static("error")
+                    }
+                };
 
-                                        let request_info = format!(
-                                            "Request №{} was successfuly sent from",
-                                            self_cloned.spawned_requests.load(Ordering::SeqCst),
-                                        );
-                                        println!("{} {}", request_info.green(), taken_proxy.bold());
-                                    }
-                                }
-                                Err(e) => {
-                                    display_error(format!("{}", e), error_mode);
-                                }
-                            },
+                if proxy_successfully_parsed {
+                    spawned_tasks.push(tokio::spawn(async move {
+                        let mut everything_is_fine = true;
+
+                        let parsed_uri = match self_cloned.url.parse::<Uri>() {
+                            Ok(unwrapped_uri) => unwrapped_uri,
                             Err(e) => {
-                                display_error(format!("{}", e), error_mode);
+                                display_error(
+                                    format!("Unable to consider taken proxy as URI, due to {}", e),
+                                    error_mode,
+                                );
+
+                                everything_is_fine = false;
+                                Uri::from_static("error")
                             }
-                        },
-                        Err(e) => {
-                            display_error(format!("{}", e), error_mode);
+                        };
+
+                        if everything_is_fine {
+                            let connector = HttpsConnector::new();
+
+                            let proxy = SocksConnector {
+                                proxy_addr: taken_proxy,
+                                auth: None,
+                                connector,
+                            };
+
+                            let client = Client::builder().build::<_, Body>(proxy);
+
+                            let req = match Request::get(parsed_uri)
+                                .method(Method::GET)
+                                .body(Body::empty())
+                            {
+                                Ok(request) => request,
+                                Err(e) => {
+                                    display_error(
+                                        format!("Unable to configure request, due to: {}", e),
+                                        error_mode,
+                                    );
+
+                                    everything_is_fine = false;
+                                    Request::new(Body::empty())
+                                }
+                            };
+
+                            if everything_is_fine {
+                                match client.request(req).await {
+                                    Ok(_) => {
+                                        self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
+
+                                        if self_cloned.spawned_requests.load(Ordering::SeqCst)
+                                            % 1000
+                                            == 0
+                                        {
+                                            display_time();
+
+                                            let request_info = format!(
+                                                "Request №{} was successfuly sent",
+                                                self_cloned.spawned_requests.load(Ordering::SeqCst),
+                                            );
+                                            println!("{}", request_info.green());
+                                        }
+                                    }
+                                    Err(e) => display_error(
+                                        format!("Unable to send request, due to {}", e),
+                                        error_mode,
+                                    ),
+                                }
+                            }
                         }
-                    };
-                }));
+                    }));
+                }
             } else {
                 spawned_tasks.push(tokio::spawn(async move {
-                    match reqwest::get(self_cloned.url.clone()).await {
-                        Ok(_) => {
-                            self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
-
-                            if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000 == 0 {
-                                display_time();
-
-                                let request_info = format!(
-                                    "Request №{} was successfuly sent",
-                                    self_cloned.spawned_requests.load(Ordering::SeqCst),
-                                );
-                                println!("{}", request_info.green());
-                            }
-                        }
+                    let mut everything_is_fine = true;
+                    let parsed_uri = match self_cloned.url.parse::<Uri>() {
+                        Ok(unwrapped_uri) => unwrapped_uri,
                         Err(e) => {
-                            display_error(format!("{}", e), error_mode);
+                            display_error(
+                                format!("Unable to consider taken proxy as URI, due to {}", e),
+                                error_mode,
+                            );
+
+                            everything_is_fine = false;
+                            Uri::from_static("error")
+                        }
+                    };
+
+                    if everything_is_fine {
+                        let https = HttpsConnector::new();
+                        let client = Client::builder().build::<_, hyper::Body>(https);
+
+                        match client.get(parsed_uri).await {
+                            Ok(_) => {
+                                self_cloned.spawned_requests.fetch_add(1, Ordering::SeqCst);
+
+                                if self_cloned.spawned_requests.load(Ordering::SeqCst) % 1000 == 0 {
+                                    display_time();
+
+                                    let request_info = format!(
+                                        "Request №{} was successfuly sent",
+                                        self_cloned.spawned_requests.load(Ordering::SeqCst),
+                                    );
+                                    println!("{}", request_info.green());
+                                }
+                            }
+                            Err(e) => display_error(
+                                format!("Unable to send request, due to {}", e),
+                                error_mode,
+                            ),
                         }
                     }
                 }));
