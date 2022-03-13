@@ -141,7 +141,7 @@ impl LoadTestingTool {
                             let connector = HttpsConnector::new();
 
                             let proxy = SocksConnector {
-                                proxy_addr: taken_proxy,
+                                proxy_addr: taken_proxy.clone(),
                                 auth: None,
                                 connector,
                             };
@@ -176,10 +176,14 @@ impl LoadTestingTool {
                                             display_time();
 
                                             let request_info = format!(
-                                                "Request №{} was successfuly sent",
+                                                "Request №{} was successfuly sent from",
                                                 self_cloned.spawned_requests.load(Ordering::SeqCst),
                                             );
-                                            println!("{}", request_info.green());
+                                            println!(
+                                                "{} {}",
+                                                request_info.green(),
+                                                taken_proxy.to_string().bold()
+                                            );
                                         }
                                     }
                                     Err(e) => display_error(
@@ -272,7 +276,8 @@ fn take_random_proxy(proxies: Vec<String>) -> String {
 }
 
 async fn website_is_up(url: String) -> Result<(), WebsiteError> {
-    let response = reqwest::get(url).await;
+    let client = Client::new();
+    let response = client.get(url.parse().unwrap()).await;
 
     match response {
         Ok(response_res) => {
