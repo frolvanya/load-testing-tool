@@ -70,7 +70,7 @@ impl LoadTestingTool {
         let mut spawned_tasks = FuturesUnordered::new();
 
         loop {
-            if spawned_tasks.len() > self.concurrency.clone() {
+            if spawned_tasks.len() > self.concurrency {
                 spawned_tasks.next().await;
             }
 
