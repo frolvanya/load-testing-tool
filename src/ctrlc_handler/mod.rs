@@ -5,8 +5,26 @@ pub async fn ctrl_c_handler(data: Arc<crate::LoadTestingTool>) {
     tokio::signal::ctrl_c().await.unwrap();
 
     println!();
+
     crate::display::time::display_time();
-    println!("{}", "Load Testing Tool was stoped by user".green());
+    println!(
+        "{}",
+        format!(
+            "{} {}",
+            "Total requests: ".green(),
+            format!("{}", data.spawned_requests.load(Ordering::SeqCst)).bold(),
+        )
+    );
+
+    crate::display::time::display_time();
+    println!(
+        "{}",
+        format!(
+            "{} {}",
+            "Failed requests: ".green(),
+            format!("{}", data.failed_requests.load(Ordering::SeqCst)).bold(),
+        )
+    );
 
     crate::display::time::display_time();
     println!(

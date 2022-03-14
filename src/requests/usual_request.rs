@@ -21,9 +21,12 @@ pub async fn send_usual_request(data: Arc<crate::LoadTestingTool>) {
                 println!("{}", request_info.green());
             }
         }
-        Err(e) => crate::display::error::display_error(
-            format!("Unable to send request, due to {}", e),
-            data.error_mode,
-        ),
+        Err(e) => {
+            data.failed_requests.fetch_add(1, Ordering::SeqCst);
+            crate::display::error::display_error(
+                format!("Unable to send request, due to {}", e),
+                data.error_mode,
+            )
+        }
     }
 }
