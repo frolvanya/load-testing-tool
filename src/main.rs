@@ -4,7 +4,6 @@ use clap::Parser;
 use colored::Colorize;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
-use hyper::Uri;
 
 use std::sync::atomic::AtomicU128;
 use std::sync::Arc;
@@ -45,8 +44,8 @@ struct Args {
 }
 
 pub struct LoadTestingTool {
-    url: Uri,
-    spawned_requests: AtomicU128,
+    url: String,
+    total_requests: AtomicU128,
     failed_requests: AtomicU128,
     use_proxy: bool,
     error_mode: bool,
@@ -77,32 +76,14 @@ impl LoadTestingTool {
 
             let cloned_self = self.clone();
             if cloned_self.use_proxy {
-                let mut proxy_successfully_parsed = true;
+                let taken_proxy = proxies::random_proxy::take_random_proxy(proxies.clone());
 
-                let taken_proxy = match proxies::random_proxy::take_random_proxy(proxies.clone())
-                    .parse::<Uri>()
-                {
-                    Ok(proxy_uri) => proxy_uri,
-                    Err(e) => {
-                        display::error::display_error(
-                            format!("Unable to parse taken proxy, due to: {}", e),
-                            cloned_self.error_mode,
-                        );
-
-                        proxy_successfully_parsed = false;
-                        Uri::from_static("error")
-                    }
-                };
-
-                if proxy_successfully_parsed {
-                    spawned_tasks.push(
-                        (async move {
-                            requests::proxy_request::send_proxy_request(cloned_self, taken_proxy)
-                                .await
-                        })
-                        .boxed(),
-                    );
-                }
+                spawned_tasks.push(
+                    (async move {
+                        requests::proxy_request::send_proxy_request(cloned_self, taken_proxy).await
+                    })
+                    .boxed(),
+                );
             } else {
                 spawned_tasks.push(
                     (async move { requests::usual_request::send_usual_request(cloned_self).await })
@@ -113,7 +94,12 @@ impl LoadTestingTool {
     }
 }
 
-async fn start_load_testing_tool(url: Uri, concurrency: usize, use_proxy: bool, error_mode: bool) {
+async fn start_load_testing_tool(
+    url: String,
+    concurrency: usize,
+    use_proxy: bool,
+    error_mode: bool,
+) {
     display::time::display_time();
     println!(
         "{} {}",
@@ -122,7 +108,7 @@ async fn start_load_testing_tool(url: Uri, concurrency: usize, use_proxy: bool, 
     );
     Arc::new(LoadTestingTool {
         url: url.clone(),
-        spawned_requests: AtomicU128::new(0),
+        total_requests: AtomicU128::new(0),
         failed_requests: AtomicU128::new(0),
         use_proxy,
         error_mode,
@@ -137,19 +123,10 @@ async fn start_load_testing_tool(url: Uri, concurrency: usize, use_proxy: bool, 
 async fn main() {
     let args = Args::parse();
 
-    let error_mode = args.no_error_mode;
-    let website_url = match args.url.parse::<Uri>() {
-        Ok(url) => url,
-        Err(e) => {
-            display::error::display_error(
-                format!("Unable to parse taken url, due to: {}", e),
-                error_mode,
-            );
-            std::process::exit(1);
-        }
-    };
+    let website_url = args.url;
     let use_proxy = args.use_proxy;
     let concurrency = args.concurrency;
+    let error_mode = args.no_error_mode;
 
     if args.no_status_check {
         start_load_testing_tool(website_url.clone(), concurrency, use_proxy, error_mode).await;

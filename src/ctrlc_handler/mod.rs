@@ -11,8 +11,8 @@ pub async fn ctrl_c_handler(data: Arc<crate::LoadTestingTool>) {
         "{}",
         format!(
             "{} {}",
-            "Total requests: ".green(),
-            format!("{}", data.spawned_requests.load(Ordering::SeqCst)).bold(),
+            "Total Req: ".green(),
+            format!("{}", data.total_requests.load(Ordering::SeqCst)).bold(),
         )
     );
 
@@ -21,7 +21,7 @@ pub async fn ctrl_c_handler(data: Arc<crate::LoadTestingTool>) {
         "{}",
         format!(
             "{} {}",
-            "Failed requests: ".green(),
+            "Failed Req: ".green(),
             format!("{}", data.failed_requests.load(Ordering::SeqCst)).bold(),
         )
     );
@@ -46,10 +46,10 @@ pub async fn ctrl_c_handler(data: Arc<crate::LoadTestingTool>) {
         "{}",
         format!(
             "{} {}",
-            "Average requests per second:".green(),
+            "Average RPS:".green(),
             format!(
                 "{:.02}",
-                data.spawned_requests.load(Ordering::SeqCst) as f64
+                data.total_requests.load(Ordering::SeqCst) as f64
                     / data.start_attack_time.elapsed().as_secs_f64()
             )
             .bold()
