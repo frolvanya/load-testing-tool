@@ -21,6 +21,21 @@ pub async fn ctrl_c_handler(data: Arc<crate::LoadTestingTool>) {
         "{}",
         format!(
             "{} {}",
+            "Successful Req: ".green(),
+            format!(
+                "{}",
+                (data.total_requests.load(Ordering::SeqCst)
+                    - data.failed_requests.load(Ordering::SeqCst))
+            )
+            .bold(),
+        )
+    );
+
+    crate::display::time::display_time();
+    println!(
+        "{}",
+        format!(
+            "{} {}",
             "Failed Req: ".green(),
             format!("{}", data.failed_requests.load(Ordering::SeqCst)).bold(),
         )
