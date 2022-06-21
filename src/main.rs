@@ -1,11 +1,9 @@
-#![feature(integer_atomics)]
-
 use clap::Parser;
 use colored::Colorize;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 
-use std::sync::atomic::AtomicU128;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -45,8 +43,8 @@ struct Args {
 
 pub struct LoadTestingTool {
     url: String,
-    total_requests: AtomicU128,
-    failed_requests: AtomicU128,
+    total_requests: AtomicU64,
+    failed_requests: AtomicU64,
     use_proxy: bool,
     error_mode: bool,
     concurrency: usize,
@@ -108,8 +106,8 @@ async fn start_load_testing_tool(
     );
     Arc::new(LoadTestingTool {
         url: url.clone(),
-        total_requests: AtomicU128::new(0),
-        failed_requests: AtomicU128::new(0),
+        total_requests: AtomicU64::new(0),
+        failed_requests: AtomicU64::new(0),
         use_proxy,
         error_mode,
         concurrency,
