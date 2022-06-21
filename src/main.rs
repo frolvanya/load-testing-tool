@@ -1,5 +1,3 @@
-#![feature(integer_atomics)]
-
 use chrono::{Local, Timelike};
 use clap::Parser;
 use colored::Colorize;
@@ -13,7 +11,7 @@ use rand::Rng;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
-use std::sync::atomic::{AtomicU128, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -48,7 +46,7 @@ struct Args {
 
 struct LoadTestingTool {
     url: String,
-    spawned_requests: AtomicU128,
+    spawned_requests: AtomicU64,
 }
 
 impl LoadTestingTool {
@@ -300,7 +298,7 @@ async fn start_load_testing_tool(
     );
     Arc::new(LoadTestingTool {
         url: url.clone(),
-        spawned_requests: AtomicU128::new(0),
+        spawned_requests: AtomicU64::new(0),
     })
     .attack(concurrency, activate_proxy, error_mode)
     .await
